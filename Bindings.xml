@@ -1,0 +1,5 @@
+<Bindings>
+	<Binding name="QUESTTEXTCOPY_OPEN" header="QUESTTEXTCOPY" category="ADDONS">
+		QuestTextCopy_Open()
+	</Binding>
+</Bindings>

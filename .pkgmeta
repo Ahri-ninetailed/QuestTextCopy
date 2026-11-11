@@ -1,0 +1,4 @@
+package-as: QuestTextCopy
+
+ignore:
+  - README.md
