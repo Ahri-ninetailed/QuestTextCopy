@@ -1,5 +1,6 @@
 ## Interface: 16001
 ## Title: Quest Text Copy
+## IconTexture: Interface\AddOns\QuestTextCopy\Icon
 ## Notes: Copy quest, NPC dialogue and book/note text in one click. /qcopy
 ## Notes-ruRU: Копирование текста квестов, диалогов NPC, книг и записок в один клик. /qcopy
 ## Author: Ahri-ninetailed
