@@ -61,9 +61,80 @@ end
 ---------------------------------------------------------------------------
 local function shown(f) return f and f.IsShown and f:IsShown() end
 
+-- Who is talking: the NPC's name and the lines under it in its tooltip
+-- (a title such as <Innkeeper>, level and type, faction). Quest lines and
+-- the PvP flag are left out; the faction is added if the tooltip has none.
+local LINE = Enum and Enum.TooltipDataLineType or {}
+local SKIP_LINE = {}
+for _, key in ipairs({ "UnitName", "Blank", "Separator", "UnitThreat", "QuestTitle",
+	"QuestObjective", "QuestPlayer", "UnitCriteriaProgress" }) do
+	if LINE[key] then SKIP_LINE[LINE[key]] = true end
+end
+
+local function npcBlock(...)
+	local unit, name
+	for i = 1, select("#", ...) do
+		unit = select(i, ...)
+		name = clean(call(UnitName, unit))
+		if name then break end
+	end
+	if not name then return nil end
+
+	local lines, seen = { name }, { [name] = true, [PVP or "PvP"] = true }
+	local function add(text)
+		text = clean(text)
+		if text and not seen[text] then
+			seen[text] = true
+			lines[#lines + 1] = text
+		end
+	end
+	local data = C_TooltipInfo and call(C_TooltipInfo.GetUnit, unit)
+	if type(data) == "table" and type(data.lines) == "table" then
+		for i, line in ipairs(data.lines) do
+			if i > 1 and type(line) == "table" and not SKIP_LINE[line.type] then
+				add(line.leftText)
+			end
+		end
+	end
+	local _, faction = call(UnitFactionGroup, unit)
+	add(faction)
+	return table.concat(lines, "\n")
+end
+
+-- Who gave each quest. The quest log doesn't know, so the NPC block is
+-- taken while the quest is offered (QUEST_DETAIL) and kept once it is
+-- accepted. Account-wide: a quest's giver is the same for every character.
+local offered = {} -- questID -> NPC block of the offer on screen
+
+local function givers()
+	if type(QuestTextCopyDB) ~= "table" then QuestTextCopyDB = {} end
+	if type(QuestTextCopyDB.givers) ~= "table" then QuestTextCopyDB.givers = {} end
+	return QuestTextCopyDB.givers
+end
+
+local function rememberOffer()
+	local questID = call(GetQuestID)
+	if not questID or questID == 0 then return end
+	-- A quest shared by a party member: the "giver" is a player, skip it.
+	if call(UnitIsPlayer, "questnpc") then
+		offered[questID] = nil
+		return
+	end
+	offered[questID] = call(npcBlock, "questnpc", "npc")
+end
+
+local function keepGiver(questID)
+	local block = questID and offered[questID]
+	if block then
+		givers()[questID] = block
+		offered[questID] = nil
+	end
+end
+
 local function fromQuestDialog()
 	if not shown(QuestFrame) then return nil end
 	local doc = newDoc()
+	doc.add(call(npcBlock, "questnpc", "npc"))
 	doc.add(call(GetTitleText))
 
 	if shown(QuestFrameDetailPanel) then
@@ -114,7 +185,7 @@ end
 local function fromGossip()
 	if not shown(GossipFrame) then return nil end
 	local doc = newDoc()
-	doc.add(call(UnitName, "npc"))
+	doc.add(call(npcBlock, "npc"))
 	doc.add(call(G.GetText) or call(GetGossipText))
 	doc.add(listFrom(G.GetActiveQuests, "title", "- "), T("Current quests:", "Текущие квесты:"))
 	doc.add(listFrom(G.GetAvailableQuests, "title", "- "), T("Available quests:", "Доступные квесты:"))
@@ -261,6 +332,7 @@ local function fromQuestLog(forcedID)
 	if restore then restore() end
 
 	local doc = newDoc()
+	doc.add(questID and givers()[questID])
 	doc.add(title)
 	doc.add(desc)
 	doc.add(obj, T("Objectives:", "Задачи:"))
@@ -352,7 +424,8 @@ local function ensureFrame()
 	frame = CreateFrame("Frame", "QuestTextCopyFrame", UIParent, template)
 	frame:SetSize(540, 400)
 	frame:SetPoint("CENTER")
-	frame:SetFrameStrata("DIALOG")
+	-- Above the world map, which a game rule may raise past DIALOG.
+	frame:SetFrameStrata("FULLSCREEN_DIALOG")
 	frame:SetClampedToScreen(true)
 	frame:SetMovable(true)
 	frame:EnableMouse(true)
@@ -498,28 +571,110 @@ SlashCmdList.QUESTTEXTCOPY = function(msg)
 end
 
 ---------------------------------------------------------------------------
--- "Copy" buttons next to the quest windows (placed just outside them)
+-- "Copy text" buttons inside the quest windows. Each one copies its own
+-- window, even when several of them are open at once.
 ---------------------------------------------------------------------------
+local LABEL = T("Text", "Текст")
+local TOOLTIP_TITLE = T("Copy text", "Копировать текст")
+local TOOLTIP_TEXT = T("Opens the text selected: press Ctrl+C.", "Открывает текст выделенным: нажми Ctrl+C.")
+
+local function fromMapDetails()
+	local details = QuestMapFrame and QuestMapFrame.DetailsFrame
+	local questID = details and details.questID
+	if questID == 0 then questID = nil end
+	return fromQuestLog(questID)
+end
+
+local function copyFrom(source)
+	local text = source()
+	if text then
+		showText(text)
+	else
+		say(T("There is no text to copy in this window.", "В этом окне нет текста для копирования."))
+	end
+end
+
+local function newButton(parent, source, template)
+	local b = CreateFrame("Button", nil, parent, template)
+	b:SetScript("OnClick", function() copyFrom(source) end)
+	b:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+		GameTooltip:SetText(TOOLTIP_TITLE)
+		GameTooltip:AddLine(TOOLTIP_TEXT, 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	return b
+end
+
+-- A red button like the window's own Accept, Decline or Back, just wide
+-- enough for its label.
+local function textButton(parent, source)
+	local b = newButton(parent, source, "UIPanelButtonTemplate")
+	b:SetText(LABEL)
+	local fs = b:GetFontString()
+	local w = fs and fs:GetStringWidth() or 0
+	b:SetSize(w > 0 and math.ceil(w) + 30 or 60, 22)
+	b:SetFrameLevel(parent:GetFrameLevel() + 5)
+	return b
+end
+
+-- Quest dialog and NPC conversation: in the bottom row, left of the
+-- Decline / Goodbye / Cancel button that every page has in the right corner
+-- (78 wide, 6 from the edge). The left corner holds Accept or Complete Quest.
+local function addBottomRowButton(parent, source)
+	local b = textButton(parent, source)
+	b:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -88, 4)
+end
+
+-- Map quest log details: in the top row, right of the Back button. Spoken
+-- Quests puts its round icons at the right end of the same row.
+local function addMapButton(details)
+	local header = details.BackFrame or details
+	local b = textButton(header, fromMapDetails)
+	if header.BackButton then
+		b:SetPoint("LEFT", header.BackButton, "RIGHT", 4, 0)
+	else
+		b:SetPoint("TOPLEFT", details, "TOPLEFT", 105, -11)
+	end
+end
+
+-- Books and notes have no free row: the page text runs to the bottom edge
+-- and the page arrows fill the strip under the title. So a small icon goes
+-- into the title bar, left of the close button, like the map's maximize.
+local ICON = "Interface\\Icons\\INV_Misc_Note_01"
+
+local function addTitleBarButton(parent, source)
+	local b = newButton(parent, source)
+	b:SetSize(20, 20)
+	local close = parent.CloseButton or _G[(parent:GetName() or "") .. "CloseButton"]
+	if close then
+		b:SetPoint("RIGHT", close, "LEFT", -2, 0)
+		b:SetFrameLevel(close:GetFrameLevel() + 1)
+	else
+		b:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -28, -2)
+	end
+	b:SetNormalTexture(ICON)
+	b:SetPushedTexture(ICON)
+	b:GetNormalTexture():SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	b:GetPushedTexture():SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	b:GetPushedTexture():SetVertexColor(0.6, 0.6, 0.6)
+	b:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+end
+
 local attached = {}
 
-local function attachButton(parent, key)
+local function attach(key, parent, add, source)
 	if not parent or attached[key] then return end
 	attached[key] = true
-	local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-	b:SetSize(100, 22)
-	b:SetPoint("TOPLEFT", parent, "TOPRIGHT", 2, -40)
-	b:SetText(T("Copy text", "Копировать"))
-	b:SetScript("OnClick", function() QuestTextCopy_Open() end)
+	add(parent, source)
 end
 
 local function tryAttach()
-	attachButton(QuestFrame, "dialog")
-	attachButton(GossipFrame, "gossip")
-	attachButton(ItemTextFrame, "itemText")
-	attachButton(QuestLogFrame, "classicLog")
-	if QuestMapFrame and QuestMapFrame.DetailsFrame then
-		attachButton(QuestMapFrame.DetailsFrame, "mapLog")
-	end
+	attach("dialog", QuestFrame, addBottomRowButton, fromQuestDialog)
+	attach("gossip", GossipFrame, addBottomRowButton, fromGossip)
+	attach("itemText", ItemTextFrame, addTitleBarButton, fromItemText)
+	attach("mapLog", QuestMapFrame and QuestMapFrame.DetailsFrame, addMapButton)
 end
 
 local events = CreateFrame("Frame")
@@ -527,8 +682,14 @@ events:RegisterEvent("PLAYER_LOGIN")
 events:RegisterEvent("ADDON_LOADED")
 events:RegisterEvent("ITEM_TEXT_BEGIN")
 events:RegisterEvent("ITEM_TEXT_READY")
+events:RegisterEvent("QUEST_DETAIL")
+events:RegisterEvent("QUEST_ACCEPTED")
 events:SetScript("OnEvent", function(_, event, name)
-	if event == "ITEM_TEXT_BEGIN" then
+	if event == "QUEST_DETAIL" then
+		rememberOffer()
+	elseif event == "QUEST_ACCEPTED" then
+		keepGiver(name) -- the payload is the questID
+	elseif event == "ITEM_TEXT_BEGIN" then
 		-- A new book or note was opened: forget the previous one.
 		bookPages, bookTitle = {}, nil
 	elseif event == "ITEM_TEXT_READY" then

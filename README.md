@@ -1,6 +1,6 @@
 # Quest Text Copy
 
-**Copy the text of quests, NPC dialogue, books and notes in one click.** Press the **Copy text** button next to the window and a copy window opens with all the text already selected: press **Ctrl+C** and paste it anywhere outside the game (a translator, a document, a message to a friend).
+**Copy the text of quests, NPC dialogue, books and notes in one click.** Press the **Text** button in the window and a copy window opens with all the text already selected: press **Ctrl+C** and paste it anywhere outside the game (a translator, a document, a message to a friend).
 
 WoW does not let addons write to the system clipboard, so the last step, Ctrl+C, is always yours.
 
@@ -8,13 +8,13 @@ WoW does not let addons write to the system clipboard, so the last step, Ctrl+C,
 
 ## Features
 
-- **Quest dialog with an NPC.** When you take a quest: its title, description and objectives. When you turn it in: the progress text and the reward text. On an NPC's quest greeting: the greeting text plus the lists of current and available quests.
-- **NPC conversations.** The NPC's name, what they say, their current and available quests and the dialogue options.
+- **Quest dialog with an NPC.** First who you are talking to: the NPC's name and the lines under it in its tooltip (title such as <Innkeeper>, level and type, faction). Then, when you take a quest: its title, description and objectives. When you turn it in: the progress text and the reward text. On an NPC's quest greeting: the greeting text plus the lists of current and available quests.
+- **NPC conversations.** The NPC's name with the same tooltip lines, what they say, their current and available quests and the dialogue options.
 - **Books, notes, letters, plaques** and other readable items and objects. The game shows one page at a time, so the addon remembers every page you flip through and copies them all with `Page 1:`, `Page 2:` headers. If there are pages you have not opened yet, the copy reminds you to flip through them.
-- **Quest log.** The selected quest's title, description, objectives, progress (`[x]` done, `[ ]` not done) and its Quest ID. Works with the classic quest log and with the quest details on the world map.
+- **Quest log.** Who gave the quest (the same NPC lines as in the dialog; remembered when you take a quest with the addon installed, so quests taken earlier have none), then the selected quest's title, description, objectives, progress (`[x]` done, `[ ]` not done) and its Quest ID. Works with the classic quest log and with the quest details on the world map.
 - **Clean text.** Color codes, icons and textures are removed, and the formatting of books is turned into plain text.
 - **Three ways to open it:**
-  - the **Copy text** button just outside the quest window, the NPC conversation, the book or note window and the quest log;
+  - the **Text** button inside the window: in the bottom row of the quest dialog and the NPC conversation, next to **Back** in the map's quest log, and a note icon next to the close button of a book or note;
   - the `/qcopy` or `/qc` command;
   - your own key: game key bindings, **AddOns** section, **Quest Text Copy**.
 - **Any quest from your log by ID:** `/qcopy 12345` copies the quest with that ID, if it is in your log.
@@ -31,7 +31,7 @@ WoW does not let addons write to the system clipboard, so the last step, Ctrl+C,
 ## How to use
 
 1. Open a quest, talk to an NPC, open a book or a note, or select a quest in your quest log.
-2. Click **Copy text** next to the window (or type `/qcopy`, or press your key).
+2. Click **Text** in the window (or type `/qcopy`, or press your key).
 3. A window opens with all the text selected. Press **Ctrl+C**.
 4. Paste the text wherever you need it with **Ctrl+V**.
 
@@ -47,19 +47,19 @@ Source code and bug reports: [GitHub](https://github.com/Ahri-ninetailed/QuestTe
 
 # Quest Text Copy (Русский)
 
-**Копирование текста квестов, диалогов NPC, книг и записок в один клик.** Нажмите кнопку **Копировать** рядом с окном, и откроется окно копирования, в котором весь текст уже выделен: нажмите **Ctrl+C** и вставьте текст куда угодно вне игры (в переводчик, документ, сообщение другу).
+**Копирование текста квестов, диалогов NPC, книг и записок в один клик.** Нажмите кнопку **Текст** в окне, и откроется окно копирования, в котором весь текст уже выделен: нажмите **Ctrl+C** и вставьте текст куда угодно вне игры (в переводчик, документ, сообщение другу).
 
 WoW не разрешает аддонам записывать в буфер обмена, поэтому последний шаг, Ctrl+C, всегда за вами.
 
 ## Возможности
 
-- **Квестовый диалог с NPC.** Когда берёте квест: название, описание и задачи. Когда сдаёте: текст о ходе выполнения и текст награды. В приветствии NPC: текст приветствия и списки текущих и доступных квестов.
-- **Разговоры с NPC.** Имя NPC, его реплика, текущие и доступные квесты и варианты ответа.
+- **Квестовый диалог с NPC.** Сначала с кем вы говорите: имя NPC и строки под ним из его подсказки (звание вроде <Хозяин таверны>, уровень и тип, фракция). Затем, когда берёте квест: название, описание и задачи. Когда сдаёте: текст о ходе выполнения и текст награды. В приветствии NPC: текст приветствия и списки текущих и доступных квестов.
+- **Разговоры с NPC.** Имя NPC с теми же строками из подсказки, его реплика, текущие и доступные квесты и варианты ответа.
 - **Книги, записки, письма, таблички** и другие читаемые предметы и объекты. Игра показывает по одной странице, поэтому аддон запоминает каждую пролистанную страницу и копирует все сразу с заголовками `Страница 1:`, `Страница 2:`. Если какие-то страницы вы ещё не открывали, в копии будет напоминание их пролистать.
-- **Журнал заданий.** Название выбранного квеста, описание, задачи, прогресс (`[x]` выполнено, `[ ]` не выполнено) и Quest ID. Работает и с классическим журналом, и с описанием квеста на карте мира.
+- **Журнал заданий.** Кто выдал квест (те же строки NPC, что и в диалоге; запоминаются, когда вы берёте квест с установленным аддоном, поэтому у квестов, взятых раньше, их нет), затем название выбранного квеста, описание, задачи, прогресс (`[x]` выполнено, `[ ]` не выполнено) и Quest ID. Работает и с классическим журналом, и с описанием квеста на карте мира.
 - **Чистый текст.** Цветовые коды, иконки и текстуры убираются, а оформление книг превращается в обычный текст.
 - **Три способа открыть окно:**
-  - кнопка **Копировать** сразу за краем окна квеста, разговора с NPC, книги или записки и журнала заданий;
+  - кнопка **Текст** внутри окна: в нижнем ряду окна квеста и разговора с NPC, рядом с **Назад** в журнале заданий на карте, а у книги или записки — значок записки рядом с крестиком;
   - команда `/qcopy` или `/qc`;
   - своя клавиша: назначения клавиш в игре, раздел **Модификации** (AddOns), **Quest Text Copy**.
 - **Любой квест из журнала по ID:** `/qcopy 12345` копирует квест с этим ID, если он есть в вашем журнале.
@@ -76,7 +76,7 @@ WoW не разрешает аддонам записывать в буфер о
 ## Как пользоваться
 
 1. Откройте квест, заговорите с NPC, откройте книгу или записку или выберите квест в журнале заданий.
-2. Нажмите **Копировать** рядом с окном (или введите `/qcopy`, или нажмите свою клавишу).
+2. Нажмите **Текст** в окне (или введите `/qcopy`, или нажмите свою клавишу).
 3. Откроется окно с выделенным текстом. Нажмите **Ctrl+C**.
 4. Вставьте текст куда нужно через **Ctrl+V**.
 
