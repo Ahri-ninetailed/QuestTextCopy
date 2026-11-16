@@ -61,9 +61,37 @@ end
 ---------------------------------------------------------------------------
 local function shown(f) return f and f.IsShown and f:IsShown() end
 
--- Who is talking: the NPC's name and the lines under it in its tooltip
--- (a title such as <Innkeeper>, level and type, faction). Quest lines and
--- the PvP flag are left out; the faction is added if the tooltip has none.
+-- Saved data (account-wide): the options and who gave each quest.
+local DEFAULTS = {
+	npcName = true,
+	npcTitle = true,
+	npcLevel = false,
+	npcReputation = false,
+	npcSide = false,
+	npcLocation = false,
+}
+
+local function db()
+	if type(QuestTextCopyDB) ~= "table" then QuestTextCopyDB = {} end
+	return QuestTextCopyDB
+end
+
+local function options()
+	local o = db().options
+	if type(o) ~= "table" then
+		o = {}
+		db().options = o
+	end
+	for key, value in pairs(DEFAULTS) do
+		if type(o[key]) ~= "boolean" then o[key] = value end
+	end
+	return o
+end
+
+-- Who is talking. Read from the NPC's tooltip, whose lines come in this
+-- order: name, title (Innkeeper), level, reputation faction (Orgrimmar),
+-- PvP. Quest lines and the PvP flag are dropped; the side (Horde, Alliance)
+-- comes from UnitFactionGroup.
 local LINE = Enum and Enum.TooltipDataLineType or {}
 local SKIP_LINE = {}
 for _, key in ipairs({ "UnitName", "Blank", "Separator", "UnitThreat", "QuestTitle",
@@ -71,7 +99,9 @@ for _, key in ipairs({ "UnitName", "Blank", "Separator", "UnitThreat", "QuestTit
 	if LINE[key] then SKIP_LINE[LINE[key]] = true end
 end
 
-local function npcBlock(...)
+local function isPvP(text) return text == PVP or text == "PvP" end
+
+local function npcInfo(...)
 	local unit, name
 	for i = 1, select("#", ...) do
 		unit = select(i, ...)
@@ -80,36 +110,94 @@ local function npcBlock(...)
 	end
 	if not name then return nil end
 
-	local lines, seen = { name }, { [name] = true, [PVP or "PvP"] = true }
-	local function add(text)
-		text = clean(text)
-		if text and not seen[text] then
-			seen[text] = true
-			lines[#lines + 1] = text
-		end
+	local info = { name = name }
+	local _, side = call(UnitFactionGroup, unit)
+	info.side = clean(side)
+
+	-- Where the talk happens: the NPC stands next to the player.
+	local zone, subzone = clean(call(GetZoneText)), clean(call(GetSubZoneText))
+	if zone and subzone and subzone ~= zone then
+		info.location = zone .. ", " .. subzone
+	else
+		info.location = zone or subzone
 	end
+
+	local rest = {}
 	local data = C_TooltipInfo and call(C_TooltipInfo.GetUnit, unit)
 	if type(data) == "table" and type(data.lines) == "table" then
 		for i, line in ipairs(data.lines) do
-			if i > 1 and type(line) == "table" and not SKIP_LINE[line.type] then
-				add(line.leftText)
+			local text = i > 1 and type(line) == "table" and not SKIP_LINE[line.type] and clean(line.leftText)
+			if text and text ~= name and not isPvP(text) then
+				rest[#rest + 1] = { text = text, type = line.type }
 			end
 		end
 	end
-	local _, faction = call(UnitFactionGroup, unit)
-	add(faction)
+
+	-- The level line: typed as such, or holding the NPC's level (or ??).
+	local level = tostring(call(UnitLevel, unit) or "")
+	local function isLevel(l)
+		if LINE.UnitLevel and l.type == LINE.UnitLevel then return true end
+		if l.text:find("??", 1, true) then return true end
+		return level ~= "" and level ~= "-1" and l.text:find("%f[%d]" .. level .. "%f[%D]") ~= nil
+	end
+	local levelAt
+	for k, l in ipairs(rest) do
+		if isLevel(l) then levelAt = k break end
+	end
+	if levelAt then
+		info.level = rest[levelAt].text
+		if levelAt > 1 then info.title = rest[1].text end
+		for k = levelAt + 1, #rest do
+			if rest[k].text ~= info.side then
+				info.reputation = rest[k].text
+				break
+			end
+		end
+	elseif rest[1] and rest[1].text ~= info.side then
+		info.title = rest[1].text
+	end
+	if info.title then info.title = info.title:match("^<(.*)>$") or info.title end
+	return info
+end
+
+-- The NPC lines the options ask for (name and title as on the nameplate):
+--   Innkeeper Grosk
+--   <Innkeeper>
+--   Level 30, Orgrimmar, Horde
+--   Orgrimmar, Valley of Strength
+local function npcText(info)
+	if type(info) == "string" then
+		-- Saved by v1.1.0 as finished text; its first line is the name.
+		info = { name = info:match("^[^\n]+") }
+	end
+	if type(info) ~= "table" then return nil end
+	local o = options()
+	local lines, more = {}, {}
+	if o.npcName and info.name then lines[#lines + 1] = info.name end
+	if o.npcTitle and info.title then lines[#lines + 1] = "<" .. info.title .. ">" end
+	if o.npcLevel and info.level then more[#more + 1] = info.level end
+	if o.npcReputation and info.reputation then more[#more + 1] = info.reputation end
+	if o.npcSide and info.side and not (o.npcReputation and info.side == info.reputation) then
+		more[#more + 1] = info.side
+	end
+	if #more > 0 then lines[#lines + 1] = table.concat(more, ", ") end
+	if o.npcLocation and info.location then lines[#lines + 1] = info.location end
+	if #lines == 0 then return nil end
 	return table.concat(lines, "\n")
 end
 
--- Who gave each quest. The quest log doesn't know, so the NPC block is
--- taken while the quest is offered (QUEST_DETAIL) and kept once it is
--- accepted. Account-wide: a quest's giver is the same for every character.
-local offered = {} -- questID -> NPC block of the offer on screen
+local function npcHeader(...)
+	return call(npcText, call(npcInfo, ...))
+end
+
+-- Who gave each quest. The quest log doesn't know, so the NPC is read
+-- while the quest is offered (QUEST_DETAIL) and kept once it is accepted.
+-- Raw fields are kept, so the options also apply to them later.
+local offered = {} -- questID -> NPC info of the offer on screen
 
 local function givers()
-	if type(QuestTextCopyDB) ~= "table" then QuestTextCopyDB = {} end
-	if type(QuestTextCopyDB.givers) ~= "table" then QuestTextCopyDB.givers = {} end
-	return QuestTextCopyDB.givers
+	if type(db().givers) ~= "table" then db().givers = {} end
+	return db().givers
 end
 
 local function rememberOffer()
@@ -120,13 +208,13 @@ local function rememberOffer()
 		offered[questID] = nil
 		return
 	end
-	offered[questID] = call(npcBlock, "questnpc", "npc")
+	offered[questID] = call(npcInfo, "questnpc", "npc")
 end
 
 local function keepGiver(questID)
-	local block = questID and offered[questID]
-	if block then
-		givers()[questID] = block
+	local info = questID and offered[questID]
+	if info then
+		givers()[questID] = info
 		offered[questID] = nil
 	end
 end
@@ -134,7 +222,7 @@ end
 local function fromQuestDialog()
 	if not shown(QuestFrame) then return nil end
 	local doc = newDoc()
-	doc.add(call(npcBlock, "questnpc", "npc"))
+	doc.add(npcHeader("questnpc", "npc"))
 	doc.add(call(GetTitleText))
 
 	if shown(QuestFrameDetailPanel) then
@@ -185,7 +273,7 @@ end
 local function fromGossip()
 	if not shown(GossipFrame) then return nil end
 	local doc = newDoc()
-	doc.add(call(npcBlock, "npc"))
+	doc.add(npcHeader("npc"))
 	doc.add(call(G.GetText) or call(GetGossipText))
 	doc.add(listFrom(G.GetActiveQuests, "title", "- "), T("Current quests:", "Текущие квесты:"))
 	doc.add(listFrom(G.GetAvailableQuests, "title", "- "), T("Available quests:", "Доступные квесты:"))
@@ -332,7 +420,7 @@ local function fromQuestLog(forcedID)
 	if restore then restore() end
 
 	local doc = newDoc()
-	doc.add(questID and givers()[questID])
+	doc.add(questID and call(npcText, givers()[questID]))
 	doc.add(title)
 	doc.add(desc)
 	doc.add(obj, T("Objectives:", "Задачи:"))
@@ -563,10 +651,64 @@ function QuestTextCopy_Open(questID)
 	end
 end
 
+---------------------------------------------------------------------------
+-- Options window: Esc > Options > AddOns > Quest Text Copy, or /qcopy options.
+-- Plain Blizzard checkboxes only: custom rows on Blizzard templates taint
+-- the whole settings list.
+---------------------------------------------------------------------------
+local settingsCategory
+
+local function buildSettings()
+	local o = options()
+	local category = Settings.RegisterVerticalLayoutCategory("Quest Text Copy")
+	local where = T("Shown at the top of the text copied from the quest dialog, an NPC conversation and the quest log.",
+		"Пишется в начале текста из окна квеста, разговора с NPC и журнала заданий.")
+	local function checkbox(key, label, example)
+		local setting = Settings.RegisterAddOnSetting(category, "QuestTextCopy_" .. key, key, o,
+			Settings.VarType and Settings.VarType.Boolean or "boolean", label, DEFAULTS[key])
+		Settings.CreateCheckbox(category, setting, where .. "\n\n" .. example)
+	end
+	checkbox("npcName", T("NPC name", "Имя NPC"), T("Example: Innkeeper Grosk", "Например: Innkeeper Grosk"))
+	checkbox("npcTitle", T("NPC title", "Звание NPC"), T("Example: <Innkeeper>", "Например: <Innkeeper>"))
+	checkbox("npcLevel", T("NPC level", "Уровень NPC"), T("Example: Level 30", "Например: Level 30"))
+	checkbox("npcReputation", T("NPC reputation faction", "Фракция репутации NPC"),
+		T("Example: Orgrimmar", "Например: Orgrimmar"))
+	checkbox("npcSide", T("NPC side", "Сторона NPC"),
+		T("Horde or Alliance; neutral NPCs have none.", "Орда или Альянс; у нейтральных NPC её нет."))
+	checkbox("npcLocation", T("NPC location", "Место NPC"),
+		T("The zone and subzone where you talked to the NPC (for a quest giver: where you took the quest). Example: Orgrimmar, Valley of Strength",
+			"Зона и подзона, где вы говорили с NPC (у квестодателя — где вы взяли квест). Например: Orgrimmar, Valley of Strength"))
+	Settings.RegisterAddOnCategory(category)
+	settingsCategory = category
+end
+
+local function setupSettings()
+	if not (Settings and Settings.RegisterVerticalLayoutCategory and Settings.RegisterAddOnSetting) then
+		return
+	end
+	local ok, err = pcall(buildSettings)
+	if not ok then
+		say(T("could not create the options window: ", "не удалось создать окно настроек: ") .. tostring(err))
+	end
+end
+
+local OPTION_WORDS = { "opt", "config", "setting", "настр" }
+
 SLASH_QUESTTEXTCOPY1 = "/qcopy"
 SLASH_QUESTTEXTCOPY2 = "/qc"
 SlashCmdList.QUESTTEXTCOPY = function(msg)
-	local id = tonumber((msg or ""):match("%d+"))
+	msg = (msg or ""):lower()
+	for _, word in ipairs(OPTION_WORDS) do
+		if msg:find(word, 1, true) then
+			if settingsCategory then
+				Settings.OpenToCategory(settingsCategory:GetID())
+			else
+				say(T("The options window is unavailable.", "Окно настроек недоступно."))
+			end
+			return
+		end
+	end
+	local id = tonumber(msg:match("%d+"))
 	QuestTextCopy_Open(id)
 end
 
@@ -694,7 +836,9 @@ events:SetScript("OnEvent", function(_, event, name)
 		bookPages, bookTitle = {}, nil
 	elseif event == "ITEM_TEXT_READY" then
 		cacheBookPage()
-	elseif event == "PLAYER_LOGIN" or (event == "ADDON_LOADED" and name ~= ADDON_NAME) then
+	elseif event == "ADDON_LOADED" and name == ADDON_NAME then
+		setupSettings()
+	elseif event == "PLAYER_LOGIN" or event == "ADDON_LOADED" then
 		tryAttach()
 	end
 end)
