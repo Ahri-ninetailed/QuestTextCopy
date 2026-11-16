@@ -6,6 +6,12 @@ WoW does not let addons write to the system clipboard, so the last step, Ctrl+C,
 
 *Русское описание ниже.*
 
+![The Text button in the quest dialog](https://raw.githubusercontent.com/Ahri-ninetailed/QuestTextCopy/main/media/quest-dialog.png)
+
+![The copy window: the text is already selected, press Ctrl+C](https://raw.githubusercontent.com/Ahri-ninetailed/QuestTextCopy/main/media/copy-window.png)
+
+![Quest Text Copy options: which NPC details go at the top of the text](https://raw.githubusercontent.com/Ahri-ninetailed/QuestTextCopy/main/media/settings.png)
+
 ## Features
 
 - **Quest dialog with an NPC.** First who you are talking to, as on the nameplate: the NPC's name and its title below it, for example `Innkeeper Grosk` and `<Innkeeper>` (see Options). Then, when you take a quest: its title, description and objectives. When you turn it in: the progress text and the reward text. On an NPC's quest greeting: the greeting text plus the lists of current and available quests.
@@ -51,6 +57,12 @@ Source code and bug reports: [GitHub](https://github.com/Ahri-ninetailed/QuestTe
 **Копирование текста квестов, диалогов NPC, книг и записок в один клик.** Нажмите кнопку **Текст** в окне, и откроется окно копирования, в котором весь текст уже выделен: нажмите **Ctrl+C** и вставьте текст куда угодно вне игры (в переводчик, документ, сообщение другу).
 
 WoW не разрешает аддонам записывать в буфер обмена, поэтому последний шаг, Ctrl+C, всегда за вами.
+
+![Кнопка «Текст» в окне квеста](https://raw.githubusercontent.com/Ahri-ninetailed/QuestTextCopy/main/media/quest-dialog.png)
+
+![Окно копирования: текст уже выделен, нажмите Ctrl+C](https://raw.githubusercontent.com/Ahri-ninetailed/QuestTextCopy/main/media/copy-window.png)
+
+![Настройки Quest Text Copy: что писать про NPC в начале текста](https://raw.githubusercontent.com/Ahri-ninetailed/QuestTextCopy/main/media/settings.png)
 
 ## Возможности
 
