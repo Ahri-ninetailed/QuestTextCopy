@@ -287,8 +287,10 @@ end
 ---------------------------------------------------------------------------
 local bookPages, bookTitle = {}, nil
 
+-- The page widget only parses HTML when the text starts with <HTML>; plain
+-- pages show angle brackets as they are (e.g. "<Someone has scratched...>").
 local function stripHtml(s)
-	if type(s) ~= "string" then return s end
+	if type(s) ~= "string" or not s:match("^%s*<[Hh][Tt][Mm][Ll]>") then return s end
 	s = s:gsub("<[Bb][Rr]%s*/?>", "\n")
 	s = s:gsub("</[Pp]>", "\n")
 	s = s:gsub("</?[Hh]%d[^>]*>", "\n")
